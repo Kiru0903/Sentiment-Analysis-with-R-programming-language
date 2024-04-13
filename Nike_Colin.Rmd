@@ -1,0 +1,354 @@
+---
+title: "Nike Colin Kaepernick Sentiment Analysis"
+output:
+  html_document: default
+  html_notebook: default
+  pdf_document: default
+---
+
+```{r}
+library(readxl)
+library(dplyr)
+library(stringr)
+library(purrr)
+library(tm)
+library(SnowballC)
+library(syuzhet)
+library(viridis)
+library(plotly)
+```
+
+```{r}
+library(readxl)
+
+# Run this library to read excel or csv file. If you do not have it then install the package by using a function call install.packages("readxl")#. 
+```
+
+```{r}
+# If you're reading from a CSV or Excel file, you would use something like read.csv() or read_excel() to load your data to a data frame
+
+All_Tweets <- read.csv("C:/Users/91992/OneDrive/Desktop/GGU/R projects/justdoit_tweets_colin.csv", header = TRUE)
+```
+
+```{r}
+# Prepare the data by selecting relevant columns and cleaning text
+All_Selected_Tweets <- All_Tweets %>% 
+  select(tweet_created_at, tweet_favorite_count, tweet_full_text, tweet_id,
+         tweet_in_reply_to_screen_name, tweet_in_reply_to_status_id, tweet_retweet_count,
+         user_favourites_count, user_followers_count, user_id, user_location,
+         user_location) %>%
+  mutate(tweet_full_text = str_remove_all(tweet_full_text, "–|’|—|“|”|-|&amp|https://[^\\s]+"),
+         tweet_full_text = tolower(tweet_full_text),
+         tweet_full_text = removePunctuation(tweet_full_text),
+         tweet_full_text = stripWhitespace(tweet_full_text),
+         tweet_full_text = wordStem(tweet_full_text))
+```
+
+```{r}
+# Sentiment analysis
+syuzhet_score <- get_sentiment(All_Selected_Tweets$tweet_full_text, method = "syuzhet")
+nrc_score <- get_sentiment(All_Selected_Tweets$tweet_full_text, method = "nrc")
+```
+
+```{r}
+# Combine scores and normalize
+Tweet_Threads_Analysis <- cbind(All_Selected_Tweets, syuzhet_score, nrc_score) %>%
+  mutate(Syuzhet = sign(syuzhet_score),
+         NRC = sign(nrc_score))
+```
+
+```{r}
+# Emotions and Sentiments visualization
+nrc_sentiment <- get_nrc_sentiment(All_Selected_Tweets$tweet_full_text)
+sentisum <- colSums(nrc_sentiment)
+interactive_bar <- plot_ly(x = names(sentisum), y = sentisum, type = 'bar', 
+                           marker = list(color = viridis::viridis(length(names(sentisum)), option = "D"))) %>%
+  layout(title = 'Emotions and Sentiments', xaxis = list(title = ''), yaxis = list(title = 'Count'))
+```
+
+```{r}
+# Display the plot
+interactive_bar
+```
+
+```{r}
+# View the negative comment basis syuzhet score
+
+min(Tweet_Threads_Analysis$Syuzhet)
+minScore <- which(Tweet_Threads_Analysis$syuzhet==min(Tweet_Threads_Analysis$Syuzhet))
+minScore
+All_Selected_Tweetss[minScore]
+```
+
+```{r}
+# Displaying the tweets with the minimum Syuzhet score and limiting to 10 tweets
+tweets_with_min_syuzhet <- All_Selected_Tweets$tweet_full_text[minScore][1:10]
+
+# To print the tweets
+print(tweets_with_min_syuzhet)
+```
+```{r}
+# View the positive comment basis syuzhet score
+
+max(Tweet_Threads_Analysis$Syuzhet)
+maxScore <- which(Tweet_Threads_Analysis$syuzhet==max(Tweet_Threads_Analysis$Syuzhet))
+maxScore
+All_Selected_Tweets[maxScore]
+```
+
+```{r}
+# Displaying the tweets with the maximum Syuzhet score and limiting to 10 tweets
+tweets_with_max_syuzhet <- All_Selected_Tweets$tweet_full_text[maxScore][1:10]
+
+# To print the tweets
+print(tweets_with_max_syuzhet)
+```
+```{r}
+library(ggplot2)
+
+# Create ggplot histogram
+p <- ggplot(Tweet_Threads_Analysis, aes(x = Syuzhet)) +  # Ensure the column name matches your dataframe
+  geom_histogram(bins = 5, fill = "purple", color = "white") +
+  labs(title = "Distribution of Sentiment Scores", x = "Sentiment Score", y = "Frequency")
+```
+
+
+```{r}
+library(plotly)
+
+# Convert to Plotly for interactivity
+p_interactive <- ggplotly(p)
+
+# Display the interactive plot
+p_interactive
+```
+
+
+```{r}
+# Calculate average sentiment for each state
+state_sentiment <- Tweet_Threads_Analysis %>%
+  group_by(user_location) %>%
+  summarise(average_sentiment = mean(syuzhet_score, na.rm = TRUE)) %>%
+  ungroup()
+```
+
+```{r}
+# Top 5 states with the highest average sentiment
+top_5_states <- state_sentiment %>%
+  top_n(5, average_sentiment)
+```
+
+```{r}
+# Bottom 5 states with the lowest average sentiment
+bottom_5_states <- state_sentiment %>%
+  top_n(-5, average_sentiment)
+```
+
+```{r}
+# Top 5 states with the highest average sentiment
+top_5_states <- state_sentiment %>%
+  slice_max(order_by = average_sentiment, n = 5)
+print(top_5_states, "Top 5 States by Average Sentiment")
+
+# Bottom 5 states with the lowest average sentiment
+bottom_5_states <- state_sentiment %>%
+  slice_min(order_by = average_sentiment, n = 5)
+print(bottom_5_states, "Bottom 5 States by Average Sentiment")
+```
+
+```{r}
+# The dataset would require cleaning. Read the file thouroghly and clean/impute data
+
+Cleaned_Tweets <- read.csv("C:/Users/91992/OneDrive/Desktop/GGU/R projects/Nike_Colin_Tweets_Cleaned.csv", header = TRUE)
+```
+
+```{r}
+# Prepare the data by selecting relevant columns and cleaning text
+All_Cleaned_Tweets <- Cleaned_Tweets %>% 
+  select(tweet_created_at, tweet_favorite_count, tweet_full_text, tweet_id,
+         tweet_retweet_count, user_favourites_count, user_followers_count, user_id, user_location,
+         user_location_us, Sentiment) %>%
+  mutate(tweet_full_text = str_remove_all(tweet_full_text, "–|’|—|“|”|-|&amp|https://[^\\s]+"),
+         tweet_full_text = tolower(tweet_full_text),
+         tweet_full_text = removePunctuation(tweet_full_text),
+         tweet_full_text = stripWhitespace(tweet_full_text),
+         tweet_full_text = wordStem(tweet_full_text))
+```
+
+```{r}
+# Calculate average sentiment for each state
+state_sentiment <- All_Cleaned_Tweets %>%
+  group_by(user_location_us) %>%
+  summarise(average_sentiment = mean(Sentiment, na.rm = TRUE)) %>%
+# Arrange data in descending order of average_sentiment
+  arrange(desc(average_sentiment))
+```
+
+```{r}
+# Top 5 states with the highest average sentiment
+top_5_states <- state_sentiment %>%
+  slice_max(order_by = average_sentiment, n = 5)
+print(top_5_states, "Top 5 States by Average Sentiment")
+
+# Bottom 5 states with the lowest average sentiment
+bottom_5_states <- state_sentiment %>%
+  slice_min(order_by = average_sentiment, n = 5)
+print(bottom_5_states, "Bottom 5 States by Average Sentiment")
+```
+```{r}
+# Let us correlate with the sales for Nike acorss North America with the sales dataset for 2020-2021
+
+Nike_sales_data <- read.csv("C:/Users/91992/OneDrive/Desktop/GGU/R projects/Nike_Sales_US.csv", header = TRUE)
+```
+
+```{r}
+# Define the list of states you're interested in
+top_5_states_sales <- c("Montana", "North Dakota", "Wyoming", "Delaware", "Missouri")
+
+# Summarize the final sales count for the selected states
+final_sales_top_selected_states <- Nike_sales_data %>%
+  filter(State %in% top_5_states_sales) %>%
+  group_by(State) %>%
+  summarise(TotalSalesCount = sum(Total.Sales, na.rm = TRUE)) %>%
+  ungroup() # Optional, to remove the grouping
+  
+# Display the result
+print(final_sales_top_selected_states)
+```
+
+```{r}
+# Define the list of states you're interested in
+bottom_5_states_sales <- c("Oklahoma", "West Virginia", "Alaska", "Nebraska", "Mississippi")
+
+# Summarize the final sales count for the selected states
+final_sales_bottom_selected_states <- Nike_sales_data %>%
+  filter(State %in% bottom_5_states_sales) %>%
+  group_by(State) %>%
+  summarise(TotalSalesCount = sum(Total.Sales, na.rm = TRUE)) %>%
+  ungroup() # Optional, to remove the grouping
+
+# Display the result
+print(final_sales_bottom_selected_states)
+```
+```{r}
+# normalize sentiment score
+All_Cleaned_Tweets <- All_Cleaned_Tweets %>%
+  mutate(Normalized_Syuzhet = sign(Sentiment))
+```
+
+
+```{r}
+# Apply the function to positive and negative tweets
+positive_tweets <- All_Cleaned_Tweets[All_Cleaned_Tweets$Normalized_Syuzhet > 0, ]
+negative_tweets <- All_Cleaned_Tweets[All_Cleaned_Tweets$Normalized_Syuzhet < 0, ]
+```
+
+```{r}
+library(dplyr)
+
+# For Positive Tweets
+top_5_positive_states <- positive_tweets %>%
+  group_by(user_location_us) %>%
+  summarise(PositiveTweetCount = n()) %>%
+  arrange(desc(PositiveTweetCount)) %>%
+  slice_head(n = 5)
+
+# For Negative Tweets
+top_5_negative_states <- negative_tweets %>%
+  group_by(user_location_us) %>%
+  summarise(NegativeTweetCount = n()) %>%
+  arrange(desc(NegativeTweetCount)) %>%
+  slice_head(n = 5)
+```
+
+```{r}
+# Print the results
+print("Top 5 States with Highest Positive Tweets:")
+print(top_5_positive_states)
+
+print("Top 5 States with Highest Negative Tweets:")
+print(top_5_negative_states)
+```
+```{r}
+# Store the states in top_5_positive_states and top_5_negative_states data frames
+top_5_positive_states_list <- top_5_positive_states$user_location_us
+top_5_negative_states_list <- top_5_negative_states$user_location_us
+
+# Filter tweets from these top 5 states
+positive_tweets_top5 <- positive_tweets %>%
+  filter(user_location_us %in% top_5_positive_states_list)
+
+negative_tweets_top5 <- negative_tweets %>%
+  filter(user_location_us %in% top_5_negative_states_list)
+```
+
+```{r}
+library(tidytext)
+
+# Tokenize positive tweets and calculate word frequencies
+positive_word_freq <- positive_tweets_top5 %>%
+  unnest_tokens(word, tweet_full_text) %>%
+  count(word, sort = TRUE)
+
+# Tokenize negative tweets and calculate word frequencies
+negative_word_freq <- negative_tweets_top5 %>%
+  unnest_tokens(word, tweet_full_text) %>%
+  count(word, sort = TRUE)
+```
+
+```{r}
+data("stop_words")
+
+positive_word_freq <- positive_word_freq %>%
+  anti_join(stop_words, by = "word")
+
+negative_word_freq <- negative_word_freq %>%
+  anti_join(stop_words, by = "word")
+```
+
+```{r}
+# Adjust N as needed
+N <- 10
+
+head(positive_word_freq, N)
+head(negative_word_freq, N)
+```
+
+```{r}
+library(dplyr)
+
+# Assuming N = 10
+N <- 10
+
+top_positive_word_freq <- positive_word_freq %>%
+  head(N)
+
+top_negative_word_freq <- negative_word_freq %>%
+  head(N)
+```
+
+
+```{r}
+library(ggplot2)
+
+# Plot for positive word frequencies
+ggplot(top_positive_word_freq, aes(x = reorder(word, n), y = n)) +
+  geom_col(fill = "dodgerblue") +
+  geom_text(aes(label = n), position = position_dodge(width = 0.9), vjust = -0.25, size = 3.5) +
+  coord_flip() +
+  labs(title = "Top 10 Word Frequencies in Positive Tweets",
+       x = "Word",
+       y = "Frequency") +
+  theme_minimal()
+
+# Plot for negative word frequencies
+ggplot(top_negative_word_freq, aes(x = reorder(word, n), y = n)) +
+  geom_col(fill = "firebrick") +
+  geom_text(aes(label = n), position = position_dodge(width = 0.9), vjust = -0.25, size = 3.5) +    
+  coord_flip() +
+  labs(title = "Top 10 Word Frequencies in Negative Tweets",
+       x = "Word",
+       y = "Frequency") +
+  theme_minimal()
+```
+
